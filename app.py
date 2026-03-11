@@ -8,59 +8,55 @@ import logging
 from urllib.parse import unquote
 import time
 
-# Attempt to import winsound for Windows alerts
 try:
     import winsound
 except ImportError:
     winsound = None
 
-# Disable logging
+# Silent mode
 log = logging.getLogger('waitress')
 log.setLevel(logging.ERROR)
 
 app = Flask(__name__)
 
-# Control variables
+# Global Control
 alert_active = False
 snooze_until = 0
 popup_visible = False
+current_root = None # Reference to the active window
 
 def alert_manager():
-    """Manages sound and triggers popup only if NOT in snooze mode"""
     global alert_active, snooze_until, popup_visible
     while alert_active:
-        current_time = time.time()
-        if current_time > snooze_until:
-            # Trigger Sound
+        if time.time() > snooze_until:
             if winsound:
                 winsound.Beep(1000, 400)
             
-            # Show Popup if it was closed or not yet visible
             if not popup_visible:
                 show_order_popup()
         time.sleep(1)
 
 def show_order_popup():
-    """Shows the popup and handles immediate closing on snooze"""
-    global alert_active, snooze_until, popup_visible
+    global alert_active, snooze_until, popup_visible, current_root
     
     def on_snooze():
-        global snooze_until, popup_visible
-        snooze_until = time.time() + 60  # Sleep for 60 seconds
+        global snooze_until, popup_visible, current_root
+        snooze_until = time.time() + 60
         popup_visible = False
-        root.quit()  # Stop mainloop
-        root.destroy() # Close window immediately
+        if current_root:
+            current_root.after(1, current_root.destroy) # FORCE CLOSE
+            current_root = None
 
     def create_alert_ui():
-        global popup_visible
+        global popup_visible, current_root
         try:
             popup_visible = True
             root = tk.Tk()
-            root.title("Order Alert")
-            root.attributes("-topmost", True)
-            root.overrideredirect(True) # No title bar
+            current_root = root # Save reference
             
-            # Window size and position (Center)
+            root.attributes("-topmost", True)
+            root.overrideredirect(True)
+            
             w, h = 500, 250
             sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
             root.geometry(f"{w}x{h}+{(sw-w)//2}+{(sh-h)//2}")
@@ -72,18 +68,17 @@ def show_order_popup():
             tk.Label(frame, text="⚠️ NEW ORDER ALERT ⚠️", fg='#ff4444', bg='#1a1a1a', 
                      font=('Segoe UI', 20, 'bold')).pack(pady=20)
             
-            tk.Label(frame, text="A new request is available on the platform!", fg='#ffffff', bg='#1a1a1a', 
+            tk.Label(frame, text="A new request is available! Check the platform.", fg='#ffffff', bg='#1a1a1a', 
                      font=('Segoe UI', 12)).pack(pady=10)
 
-            # Snooze button will destroy the window immediately
-            tk.Button(frame, text="SNOOZE & HIDE (1 MIN)", command=on_snooze,
-                            bg='#cc0000', fg='white', font=('Segoe UI', 10, 'bold'),
-                            padx=30, pady=15, border=0, cursor="hand2").pack(pady=20)
+            tk.Button(frame, text="SNOOZE & HIDE NOW", command=on_snooze,
+                            bg='#cc0000', fg='white', font=('Segoe UI', 11, 'bold'),
+                            padx=40, pady=15, border=0, cursor="hand2").pack(pady=20)
 
-            # Check if alert is killed from outside (terminate)
             def monitor():
-                if not alert_active:
-                    root.destroy()
+                global alert_active, current_root
+                if not alert_active and current_root:
+                    current_root.after(1, current_root.destroy)
                 else:
                     root.after(500, monitor)
 
@@ -92,19 +87,17 @@ def show_order_popup():
         except:
             popup_visible = False
 
-    # Start UI in a separate thread
     threading.Thread(target=create_alert_ui, daemon=True).start()
 
 def show_code_popup(code):
-    """Small code notification remains the same"""
     def create_window():
         try:
             root = tk.Tk()
             root.overrideredirect(True)
             root.attributes("-topmost", True)
-            width, height = 300, 90
+            w, h = 300, 90
             sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
-            root.geometry(f"{width}x{height}+{sw - width - 20}+{sh - height - 50}")
+            root.geometry(f"{w}x{h}+{sw-w-20}+{sh-h-50}")
             root.configure(bg='#121212')
             f = tk.Frame(root, bg='#121212', highlightbackground="#333333", highlightthickness=1)
             f.pack(fill='both', expand=True)
