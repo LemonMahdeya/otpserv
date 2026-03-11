@@ -7,6 +7,7 @@ from waitress import serve
 import logging
 from urllib.parse import unquote
 import time
+import queue
 import traceback
 
 try:
@@ -25,6 +26,7 @@ logging.basicConfig(
 app = Flask(__name__)
 
 # ---------------- GLOBAL STATE ---------------- #
+alert_queue = queue.Queue()
 alert_active = False
 snooze_until = 0
 popup_visible = False
@@ -45,27 +47,17 @@ def safe_thread(target, *args):
     t.start()
     return t
 
-# ---------------- SOUND LOOP ---------------- #
-def sound_loop():
-    global alert_active, popup_visible
-    while popup_visible and alert_active:
-        try:
-            if winsound:
-                winsound.Beep(1200, 300)
-        except:
-            pass
-        time.sleep(1)
-
-# ---------------- ALERT MANAGER ---------------- #
-def alert_manager():
+# ---------------- ALERT LOOP ---------------- #
+def alert_loop():
     global alert_active, snooze_until, popup_visible
     while True:
         try:
             if not alert_active:
                 time.sleep(1)
                 continue
+
             now = time.time()
-            if now >= snooze_until and not popup_visible:
+            if now >= snooze_until and not popup_visible and not alert_queue.empty():
                 show_order_popup()
             time.sleep(1)
         except Exception:
@@ -75,8 +67,7 @@ def alert_manager():
 # ---------------- ORDER POPUP ---------------- #
 def show_order_popup():
     global popup_visible, snooze_until, alert_active
-
-    def create_ui():
+    def mainloop_ui():
         global popup_visible, snooze_until, alert_active
         try:
             popup_visible = True
@@ -110,7 +101,15 @@ def show_order_popup():
                       bg='#cc0000', fg='white', font=('Segoe UI', 9, 'bold'),
                       padx=15, pady=2, border=0).pack(side='left', padx=20)
 
-            # تشغيل الصوت المتكرر في thread آمن
+            # تشغيل الصوت المتكرر في thread مستقل
+            def sound_loop():
+                while popup_visible and alert_active:
+                    try:
+                        if winsound:
+                            winsound.Beep(1200, 300)
+                    except:
+                        pass
+                    time.sleep(1)
             safe_thread(sound_loop)
 
             # مراقبة terminate
@@ -120,7 +119,6 @@ def show_order_popup():
                     root.destroy()
                     return
                 root.after(500, monitor)
-
             monitor()
             root.mainloop()
         except Exception:
@@ -128,11 +126,12 @@ def show_order_popup():
         finally:
             popup_visible = False
 
-    safe_thread(create_ui)
+    # تشغيل GUI loop في main thread (آمن للـ exe)
+    mainloop_ui()
 
 # ---------------- CODE POPUP ---------------- #
 def show_code_popup(code):
-    def create_window():
+    def mainloop_code():
         try:
             root = tk.Tk()
             root.overrideredirect(True)
@@ -151,8 +150,7 @@ def show_code_popup(code):
             root.mainloop()
         except Exception:
             logging.error(traceback.format_exc())
-
-    safe_thread(create_window)
+    safe_thread(mainloop_code)
 
 # ---------------- ROUTES ---------------- #
 @app.route('/send')
@@ -175,6 +173,7 @@ def handle_control():
         if 'order' in cmd:
             alert_active = True
             snooze_until = 0
+            alert_queue.put("new")
             return "Activated", 200
         elif 'terminate' in cmd:
             alert_active = False
@@ -186,6 +185,7 @@ def handle_control():
 
 # ---------------- MAIN ---------------- #
 if __name__ == '__main__':
-    # تشغيل alert manager thread آمن
-    safe_thread(alert_manager)
+    # تشغيل alert loop في thread آمن
+    safe_thread(alert_loop)
+    # تشغيل السيرفر
     serve(app, host='0.0.0.0', port=5000, threads=2)
