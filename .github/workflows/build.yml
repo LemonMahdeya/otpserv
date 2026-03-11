@@ -1,4 +1,4 @@
-name: Build Windows EXE
+name: Build Stable Windows EXE
 
 on: 
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch: 
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true # هذا السطر يحل مشكلة التحذير التي ظهرت لك
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build:
@@ -26,12 +26,15 @@ jobs:
         python -m pip install --upgrade pip
         pip install pyinstaller flask waitress pyperclip
 
-    - name: Build EXE with PyInstaller
+    - name: Build EXE with PyInstaller (stable)
       run: |
-        pyinstaller --noconsole --onefile --hidden-import=waitress --hidden-import=pyperclip app.py
+        pyinstaller --noconsole --onedir --hidden-import=waitress --hidden-import=pyperclip app.py
+
+    - name: List dist folder
+      run: dir dist
 
     - name: Upload EXE Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: MyWindowApp
-        path: dist/app.exe
+        name: MyStableWindowApp
+        path: dist/app/
