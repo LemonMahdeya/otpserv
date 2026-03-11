@@ -29,11 +29,9 @@ def alert_manager():
     while alert_active:
         current_time = time.time()
         if current_time > snooze_until:
-            # Play Sound
             if winsound:
                 winsound.Beep(1000, 400)
             
-            # Show Popup ONLY if not already showing
             if not popup_visible:
                 show_order_popup()
         time.sleep(1)
@@ -44,7 +42,7 @@ def show_order_popup():
     def on_snooze():
         global snooze_until, popup_visible
         snooze_until = time.time() + 60
-        popup_visible = False # Reset flag immediately
+        popup_visible = False 
         root.destroy()
 
     def create_alert_ui():
@@ -55,23 +53,30 @@ def show_order_popup():
             root.attributes("-topmost", True)
             root.overrideredirect(True)
             
-            w, h = 500, 250
+            # Slim Banner Geometry: Width=600, Height=60
+            w, h = 600, 60
             sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
-            root.geometry(f"{w}x{h}+{(sw-w)//2}+{(sh-h)//2}")
+            # Position: Centered horizontally, slightly above center vertically
+            root.geometry(f"{w}x{h}+{(sw-w)//2}+{(sh-h)//2 - 100}")
             root.configure(bg='#1a1a1a')
             
-            frame = tk.Frame(root, bg='#1a1a1a', highlightbackground="#ff0000", highlightthickness=3)
+            # Border frame for the red accent
+            frame = tk.Frame(root, bg='#1a1a1a', highlightbackground="#ff0000", highlightthickness=2)
             frame.pack(fill='both', expand=True)
 
-            tk.Label(frame, text="⚠️ NEW ORDER ALERT ⚠️", fg='#ff4444', bg='#1a1a1a', 
-                     font=('Segoe UI', 20, 'bold')).pack(pady=20)
-            
-            tk.Label(frame, text="A new request is available! Check the platform.", fg='#ffffff', bg='#1a1a1a', 
-                     font=('Segoe UI', 12)).pack(pady=10)
+            # Horizontal Layout Container
+            content = tk.Frame(frame, bg='#1a1a1a')
+            content.pack(expand=True)
 
-            tk.Button(frame, text="SNOOZE & HIDE NOW", command=on_snooze,
-                            bg='#cc0000', fg='white', font=('Segoe UI', 11, 'bold'),
-                            padx=40, pady=15, border=0, cursor="hand2").pack(pady=20)
+            # Icon/Emoji and Text
+            tk.Label(content, text="⚠️", fg='#ff4444', bg='#1a1a1a', font=('Segoe UI', 16)).pack(side='left', padx=(10, 5))
+            tk.Label(content, text="NEW ORDER ALERT!", fg='#ff4444', bg='#1a1a1a', font=('Segoe UI', 12, 'bold')).pack(side='left')
+            tk.Label(content, text="| Check the platform now", fg='#ffffff', bg='#1a1a1a', font=('Segoe UI', 10)).pack(side='left', padx=10)
+
+            # Small, stylish Snooze Button
+            tk.Button(content, text="SNOOZE (1m)", command=on_snooze,
+                      bg='#cc0000', fg='white', font=('Segoe UI', 9, 'bold'),
+                      padx=15, pady=2, border=0, cursor="hand2").pack(side='left', padx=20)
 
             def monitor():
                 global alert_active, popup_visible
@@ -86,7 +91,7 @@ def show_order_popup():
         except:
             pass
         finally:
-            popup_visible = False # Ensure flag is reset if window closes for any reason
+            popup_visible = False
 
     threading.Thread(target=create_alert_ui, daemon=True).start()
 
@@ -96,14 +101,14 @@ def show_code_popup(code):
             root = tk.Tk()
             root.overrideredirect(True)
             root.attributes("-topmost", True)
-            w, h = 300, 90
+            w, h = 280, 70 # Smaller code popup too
             sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
             root.geometry(f"{w}x{h}+{sw-w-20}+{sh-h-50}")
             root.configure(bg='#121212')
             f = tk.Frame(root, bg='#121212', highlightbackground="#333333", highlightthickness=1)
             f.pack(fill='both', expand=True)
-            tk.Label(f, text="VERIFICATION CODE", fg='#888888', bg='#121212', font=('Segoe UI', 8, 'bold')).pack(pady=(10, 0))
-            tk.Label(f, text=code, fg='#ffffff', bg='#121212', font=('Consolas', 24, 'bold')).pack(expand=True)
+            tk.Label(f, text="VERIFICATION CODE", fg='#888888', bg='#121212', font=('Segoe UI', 7, 'bold')).pack(pady=(5, 0))
+            tk.Label(f, text=code, fg='#ffffff', bg='#121212', font=('Consolas', 22, 'bold')).pack(expand=True)
             pyperclip.copy(code)
             root.after(6000, root.destroy)
             root.mainloop()
