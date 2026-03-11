@@ -5,6 +5,9 @@ on:
     branches: [ main ]
   workflow_dispatch: 
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true # هذا السطر يحل مشكلة التحذير التي ظهرت لك
+
 jobs:
   build:
     runs-on: windows-latest
@@ -28,7 +31,7 @@ jobs:
         pyinstaller --noconsole --onefile --hidden-import=waitress --hidden-import=pyperclip app.py
 
     - name: Upload EXE Artifact
-      uses: actions/upload-artifact@v4 # التحديث المطلوب هنا
+      uses: actions/upload-artifact@v4
       with:
         name: MyWindowApp
         path: dist/app.exe
