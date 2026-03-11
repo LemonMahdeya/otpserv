@@ -7,15 +7,19 @@ from waitress import serve
 import logging
 from urllib.parse import unquote
 import time
-import sys
 
-# Attempt to import winsound for Windows alerts
 try:
     import winsound
 except ImportError:
     winsound = None
 
-# Global Control Variables
+# Silent mode
+log = logging.getLogger('waitress')
+log.setLevel(logging.ERROR)
+
+app = Flask(__name__)
+
+# Global Control
 alert_active = False
 snooze_until = 0
 popup_visible = False
@@ -23,17 +27,16 @@ popup_visible = False
 def alert_manager():
     global alert_active, snooze_until, popup_visible
     while alert_active:
-        try:
-            current_time = time.time()
-            if current_time > snooze_until:
-                if winsound:
-                    winsound.Beep(1000, 400)
-                
-                if not popup_visible:
-                    show_order_popup()
-            time.sleep(1)
-        except Exception as e:
-            time.sleep(1) # prevent CPU hogging on error
+        current_time = time.time()
+        if current_time > snooze_until:
+            # Play Sound
+            if winsound:
+                winsound.Beep(1000, 400)
+            
+            # Show Popup ONLY if not already showing
+            if not popup_visible:
+                show_order_popup()
+        time.sleep(1)
 
 def show_order_popup():
     global alert_active, snooze_until, popup_visible
@@ -41,7 +44,7 @@ def show_order_popup():
     def on_snooze():
         global snooze_until, popup_visible
         snooze_until = time.time() + 60
-        popup_visible = False
+        popup_visible = False # Reset flag immediately
         root.destroy()
 
     def create_alert_ui():
@@ -71,18 +74,19 @@ def show_order_popup():
                             padx=40, pady=15, border=0, cursor="hand2").pack(pady=20)
 
             def monitor():
-                global alert_active
+                global alert_active, popup_visible
                 if not alert_active:
+                    popup_visible = False
                     root.destroy()
                 else:
                     root.after(500, monitor)
 
             monitor()
             root.mainloop()
-        except Exception:
+        except:
             pass
         finally:
-            popup_visible = False
+            popup_visible = False # Ensure flag is reset if window closes for any reason
 
     threading.Thread(target=create_alert_ui, daemon=True).start()
 
@@ -103,13 +107,8 @@ def show_code_popup(code):
             pyperclip.copy(code)
             root.after(6000, root.destroy)
             root.mainloop()
-        except Exception: pass
+        except: pass
     threading.Thread(target=create_window, daemon=True).start()
-
-# Flask Setup
-app = Flask(__name__)
-log = logging.getLogger('waitress')
-log.setLevel(logging.ERROR)
 
 @app.route('/send')
 def handle_code():
@@ -134,12 +133,5 @@ def handle_control():
         return "Terminated", 200
     return "Invalid", 400
 
-# Main Self-Healing Wrapper
 if __name__ == '__main__':
-    while True: # Infinite loop to restart on failure
-        try:
-            serve(app, host='0.0.0.0', port=5000, threads=4)
-        except Exception as e:
-            # If server crashes, wait 5 seconds and restart
-            time.sleep(5)
-            continue
+    serve(app, host='0.0.0.0', port=5000, threads=4)
