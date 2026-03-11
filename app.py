@@ -7,53 +7,48 @@ from waitress import serve
 import logging
 from urllib.parse import unquote
 import time
+import sys
 
+# Attempt to import winsound for Windows alerts
 try:
     import winsound
 except ImportError:
     winsound = None
 
-# Silent mode
-log = logging.getLogger('waitress')
-log.setLevel(logging.ERROR)
-
-app = Flask(__name__)
-
-# Global Control
+# Global Control Variables
 alert_active = False
 snooze_until = 0
 popup_visible = False
-current_root = None # Reference to the active window
 
 def alert_manager():
     global alert_active, snooze_until, popup_visible
     while alert_active:
-        if time.time() > snooze_until:
-            if winsound:
-                winsound.Beep(1000, 400)
-            
-            if not popup_visible:
-                show_order_popup()
-        time.sleep(1)
+        try:
+            current_time = time.time()
+            if current_time > snooze_until:
+                if winsound:
+                    winsound.Beep(1000, 400)
+                
+                if not popup_visible:
+                    show_order_popup()
+            time.sleep(1)
+        except Exception as e:
+            time.sleep(1) # prevent CPU hogging on error
 
 def show_order_popup():
-    global alert_active, snooze_until, popup_visible, current_root
+    global alert_active, snooze_until, popup_visible
     
     def on_snooze():
-        global snooze_until, popup_visible, current_root
+        global snooze_until, popup_visible
         snooze_until = time.time() + 60
         popup_visible = False
-        if current_root:
-            current_root.after(1, current_root.destroy) # FORCE CLOSE
-            current_root = None
+        root.destroy()
 
     def create_alert_ui():
-        global popup_visible, current_root
+        global popup_visible
         try:
             popup_visible = True
             root = tk.Tk()
-            current_root = root # Save reference
-            
             root.attributes("-topmost", True)
             root.overrideredirect(True)
             
@@ -76,15 +71,17 @@ def show_order_popup():
                             padx=40, pady=15, border=0, cursor="hand2").pack(pady=20)
 
             def monitor():
-                global alert_active, current_root
-                if not alert_active and current_root:
-                    current_root.after(1, current_root.destroy)
+                global alert_active
+                if not alert_active:
+                    root.destroy()
                 else:
                     root.after(500, monitor)
 
             monitor()
             root.mainloop()
-        except:
+        except Exception:
+            pass
+        finally:
             popup_visible = False
 
     threading.Thread(target=create_alert_ui, daemon=True).start()
@@ -106,8 +103,13 @@ def show_code_popup(code):
             pyperclip.copy(code)
             root.after(6000, root.destroy)
             root.mainloop()
-        except: pass
+        except Exception: pass
     threading.Thread(target=create_window, daemon=True).start()
+
+# Flask Setup
+app = Flask(__name__)
+log = logging.getLogger('waitress')
+log.setLevel(logging.ERROR)
 
 @app.route('/send')
 def handle_code():
@@ -132,5 +134,12 @@ def handle_control():
         return "Terminated", 200
     return "Invalid", 400
 
+# Main Self-Healing Wrapper
 if __name__ == '__main__':
-    serve(app, host='0.0.0.0', port=5000, threads=4)
+    while True: # Infinite loop to restart on failure
+        try:
+            serve(app, host='0.0.0.0', port=5000, threads=4)
+        except Exception as e:
+            # If server crashes, wait 5 seconds and restart
+            time.sleep(5)
+            continue
