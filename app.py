@@ -38,18 +38,21 @@ popup_running = False
 
 def alert_manager():
 
-    global alert_active, snooze_until
+    global alert_active, snooze_until, popup_running
 
     while True:
 
         try:
 
-            if alert_active:
+            if not alert_active:
+                time.sleep(1)
+                continue
 
-                now = time.time()
+            now = time.time()
 
-                if now > snooze_until:
+            if now >= snooze_until:
 
+                if not popup_running:
                     popup_queue.put(("order", None))
 
                     if winsound:
@@ -58,11 +61,11 @@ def alert_manager():
                         except:
                             pass
 
-            time.sleep(2)
+            time.sleep(1)
 
         except Exception:
             logging.error(traceback.format_exc())
-            time.sleep(3)
+            time.sleep(2)
 
 
 # ---------------- POPUP WORKER ---------------- #
@@ -99,10 +102,11 @@ def show_order_popup():
     popup_running = True
 
     def snooze():
-        global snooze_until, popup_running
-        snooze_until = time.time() + 60
-        popup_running = False
-        root.destroy()
+    global snooze_until, popup_running
+
+    snooze_until = time.time() + 60
+    popup_running = False
+    root.destroy()
 
     try:
 
@@ -284,3 +288,4 @@ if __name__ == '__main__':
         port=5000,
         threads=2
     )
+
