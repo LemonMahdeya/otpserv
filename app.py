@@ -1,4 +1,3 @@
-%%writefile app.py
 import threading
 import re
 import tkinter as tk
@@ -105,4 +104,5 @@ def handle_control():
     return "Invalid", 400
 
 if __name__ == '__main__':
+
     serve(app, host='0.0.0.0', port=5000, threads=4)
