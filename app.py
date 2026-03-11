@@ -15,8 +15,6 @@ except:
     winsound = None
 
 
-# ---------------- LOGGING ---------------- #
-
 logging.basicConfig(
     filename="server.log",
     level=logging.ERROR,
@@ -25,11 +23,27 @@ logging.basicConfig(
 
 app = Flask(__name__)
 
-# ---------------- GLOBAL STATE ---------------- #
-
 alert_active = False
 snooze_until = 0
 popup_visible = False
+
+
+# ---------------- SOUND LOOP ---------------- #
+
+def sound_loop():
+
+    global alert_active, popup_visible
+
+    while popup_visible and alert_active:
+
+        try:
+            if winsound:
+                winsound.Beep(1200, 300)
+
+        except:
+            pass
+
+        time.sleep(1)
 
 
 # ---------------- ALERT MANAGER ---------------- #
@@ -50,12 +64,6 @@ def alert_manager():
 
             if now >= snooze_until and not popup_visible:
 
-                if winsound:
-                    try:
-                        winsound.Beep(1000, 400)
-                    except:
-                        pass
-
                 show_order_popup()
 
             time.sleep(1)
@@ -73,7 +81,7 @@ def show_order_popup():
 
     def create_ui():
 
-        global popup_visible, snooze_until
+        global popup_visible, snooze_until, alert_active
 
         try:
 
@@ -142,9 +150,25 @@ def show_order_popup():
                 font=('Segoe UI', 9, 'bold'),
                 padx=15,
                 pady=2,
-                border=0,
-                cursor="hand2"
+                border=0
             ).pack(side='left', padx=20)
+
+            # تشغيل الصوت المتكرر
+            threading.Thread(target=sound_loop, daemon=True).start()
+
+            # مراقبة terminate
+            def monitor():
+
+                global popup_visible
+
+                if not alert_active:
+                    popup_visible = False
+                    root.destroy()
+                    return
+
+                root.after(500, monitor)
+
+            monitor()
 
             root.mainloop()
 
@@ -245,13 +269,11 @@ def handle_control():
 
             alert_active = True
             snooze_until = 0
-
             return "Activated", 200
 
         elif 'terminate' in cmd:
 
             alert_active = False
-
             return "Terminated", 200
 
         return "Invalid", 400
